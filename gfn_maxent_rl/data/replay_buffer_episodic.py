@@ -12,12 +12,12 @@ class EpisodicReplayBuffer(ReplayBuffer):
 
         dtype = np.dtype([
             ('observations', env.observation_sequence_dtype, (env.max_length,)),
-            ('actions', np.int_, (env.max_length,)),
-            ('rewards', np.float_, (env.max_length,)),
+            ('actions', np.int64, (env.max_length,)),
+            ('rewards', np.float64, (env.max_length,)),
 
             # Misc
-            ('is_complete', np.bool_, ()),
-            ('lengths', np.int_, ()),
+            ('is_complete', bool, ()),
+            ('lengths', np.int64, ()),
         ])
         self._replay = np.zeros((capacity,), dtype=dtype)
         self._index = 0

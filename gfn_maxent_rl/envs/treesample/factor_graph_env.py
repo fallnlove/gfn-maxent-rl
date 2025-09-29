@@ -48,7 +48,7 @@ class FactorGraphEnvironment(gym.vector.VectorEnv):
         for clique, potential in potentials:
             assert potential.size == self.num_categories ** len(clique)
 
-        self._state = np.full((num_envs, self.num_variables), -1, dtype=np.int_)
+        self._state = np.full((num_envs, self.num_variables), -1, dtype=np.int64)
         self._all_states, self._all_keys = None, None
         self._state_graph = None
 
@@ -57,7 +57,7 @@ class FactorGraphEnvironment(gym.vector.VectorEnv):
                 low=-1,
                 high=self.num_categories,
                 shape=(self.num_variables,),
-                dtype=np.int_
+                dtype=np.int64
             ),
             'mask': MultiBinary(self.num_variables),
         })
@@ -85,8 +85,8 @@ class FactorGraphEnvironment(gym.vector.VectorEnv):
         self._state[~dones, indices] = values
 
         # Compute the rewards (more precisely, difference in log-rewards)
-        rewards = np.zeros((self.num_envs,), dtype=np.float_)
-        active_potentials = np.zeros((self.num_envs, len(self.potentials)), dtype=np.bool_)
+        rewards = np.zeros((self.num_envs,), dtype=np.float64)
+        active_potentials = np.zeros((self.num_envs, len(self.potentials)), dtype=bool)
 
         if len(indices) > 0:
             for i, (clique, potential) in enumerate(self.potentials):
@@ -104,7 +104,7 @@ class FactorGraphEnvironment(gym.vector.VectorEnv):
                 rewards[is_active] += potential[codes]
                 active_potentials[:, i] = is_active
 
-        truncated = np.zeros((self.num_envs,), dtype=np.bool_)
+        truncated = np.zeros((self.num_envs,), dtype=bool)
         self._state[dones] = -1  # Clear state for complete trajectories
         rewards[dones] = 0.  # Terminal action has 0 reward
         infos = {'active_potentials': active_potentials}
@@ -114,7 +114,7 @@ class FactorGraphEnvironment(gym.vector.VectorEnv):
     def observations(self):
         return {
             'variables': np.copy(self._state),
-            'mask': (self._state == -1).astype(np.int_)
+            'mask': (self._state == -1).astype(np.int64)
         }
 
     # Properties & methods to interact with the replay buffer
@@ -122,8 +122,8 @@ class FactorGraphEnvironment(gym.vector.VectorEnv):
     @property
     def observation_dtype(self):
         return np.dtype([
-            ('variables', np.int_, (self.num_variables,)),
-            ('mask', np.int_, (self.num_variables,))
+            ('variables', np.int64, (self.num_variables,)),
+            ('mask', np.int64, (self.num_variables,))
         ])
 
     @property
@@ -180,7 +180,7 @@ class FactorGraphEnvironment(gym.vector.VectorEnv):
             self._all_keys = list(iterator)
             self._all_states = np.fromiter(
                 chain(*self._all_keys),
-                dtype=np.int_,
+                dtype=np.int64,
                 count=num_states * self.num_variables,
             ).reshape(-1, self.num_variables)
         
@@ -203,7 +203,7 @@ class FactorGraphEnvironment(gym.vector.VectorEnv):
 
     def log_reward(self, observations):
         variables = observations['variables']
-        log_rewards = np.zeros((variables.shape[0],), dtype=np.float_)
+        log_rewards = np.zeros((variables.shape[0],), dtype=np.float64)
 
         for clique, potential in self.potentials:
             assignments = variables[:, clique]
@@ -260,7 +260,7 @@ class FactorGraphEnvironment(gym.vector.VectorEnv):
             yield (keys[index:index + batch_size], self.max_length)
 
     def key_to_action_mask(self, keys):
-        action_masks = np.zeros((len(keys), self.single_action_space.n), dtype=np.bool_)
+        action_masks = np.zeros((len(keys), self.single_action_space.n), dtype=bool)
         for i, variables in enumerate(keys):
             indices = np.array([i * self.num_categories + value
                 for (i, value) in enumerate(variables)])
@@ -279,7 +279,7 @@ class FactorGraphEnvironment(gym.vector.VectorEnv):
         if blacklist is None:
             blacklist = dict((key, set()) for key in keys)
 
-        trajectories = np.full((len(keys), num_trajectories, self.max_length), -1, dtype=np.int_)
+        trajectories = np.full((len(keys), num_trajectories, self.max_length), -1, dtype=np.int64)
 
         for i, key in enumerate(keys):
             actions = np.array([i * self.num_categories + value
@@ -289,12 +289,12 @@ class FactorGraphEnvironment(gym.vector.VectorEnv):
             idx, offset = 0, 0
             while (offset < num_trajectories) and (idx < max_retries):
                 new_trajs = np.full((num_trajectories, self.max_length),
-                    self.single_action_space.n - 1, dtype=np.int_)
+                    self.single_action_space.n - 1, dtype=np.int64)
                 new_trajs[:, :-1] = rng.permuted(actions, axis=1)
 
                 # Get the indices of the whitelisted trajectories
                 is_whitelist = np.array([tuple(traj) not in blacklist[key]
-                    for traj in new_trajs], dtype=np.bool_)
+                    for traj in new_trajs], dtype=bool)
                 num_whitelist = np.sum(is_whitelist)
 
                 trajectories[i, offset:offset + num_whitelist] = new_trajs[is_whitelist]

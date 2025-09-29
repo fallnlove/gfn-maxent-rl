@@ -9,7 +9,7 @@ from numpy.random import default_rng
 from tqdm.auto import trange
 
 from gfn_maxent_rl.utils.exhaustive import exact_log_posterior
-from gfn_maxent_rl.utils.async_evaluation import AsyncEvaluator
+from gfn_maxent_rl.utils.sync_evaluation import SyncEvaluator
 from gfn_maxent_rl.envs.errors import StatesEnumerationError
 
 
@@ -63,8 +63,8 @@ def main(config):
         target['log_probs'] = exact_log_posterior(env, batch_size=config.batch_size)
     except StatesEnumerationError:
         pass
-    path = f"tmp1/{config.env.env.dataset_name}/run_{config.seed}"
-    evaluator = AsyncEvaluator(env, algorithm, path, None, ctx='spawn', target=target)
+    path = f"tmp1/{config.env.dataset_name}/run_{config.seed}"
+    evaluator = SyncEvaluator(env, algorithm, path, None, target=target, n_eval=config.n_eval)
 
     observations, _ = env.reset()
     indices = None

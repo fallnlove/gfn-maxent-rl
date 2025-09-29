@@ -17,7 +17,7 @@ def get_all_dags_compressed(num_variables):
     x, y = np.triu_indices(num_variables, k=1)
 
     # Fill the upper-triangular matrices
-    trius = np.zeros((len(codes),) + shape, dtype=np.int_)
+    trius = np.zeros((len(codes),) + shape, dtype=np.int64)
     trius[:, x, y] = codes
 
     # Apply permutation, and remove duplicates

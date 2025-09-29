@@ -40,7 +40,7 @@ def factor_graph1_env(
     for clique in cliques:
         num_states = num_categories ** len(clique)
         potentials.append((
-            np.asarray(clique, dtype=np.int_),
+            np.asarray(clique, dtype=np.int64),
             rng.normal(loc=0., scale=1., size=(num_states,))
         ))
     
@@ -51,6 +51,6 @@ def factor_graph1_env(
             if variable not in permutation:
                 permutation.append(variable)
     assert len(permutation) == num_variables
-    permutation = np.asarray(permutation, dtype=np.int_)
+    permutation = np.asarray(permutation, dtype=np.int64)
 
     return FactorGraphEnvironment(num_envs, graph, potentials, permutation)

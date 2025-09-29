@@ -46,9 +46,9 @@ class DAGEnvironment(gym.vector.VectorEnv):
 
     def reset(self, *, seed=None, options=None):
         shape = (self.num_envs, self.num_variables, self.num_variables)
-        closure_T = np.eye(self.num_variables, dtype=np.bool_)
+        closure_T = np.eye(self.num_variables, dtype=bool)
         self._state = {
-            'adjacency': np.zeros(shape, dtype=np.bool_),
+            'adjacency': np.zeros(shape, dtype=bool),
             'closure_T': np.tile(closure_T, (self.num_envs, 1, 1)),
         }
         return (self.observations(), {})
@@ -57,7 +57,7 @@ class DAGEnvironment(gym.vector.VectorEnv):
         sources, targets = divmod(actions, self.num_variables)
         dones = (sources == self.num_variables)
         sources, targets = sources[~dones], targets[~dones]
-        truncated = np.zeros((self.num_envs,), dtype=np.bool_)
+        truncated = np.zeros((self.num_envs,), dtype=bool)
 
         # Make sure that all the actions are valid
         is_invalid = np.logical_or(self._state['adjacency'], self._state['closure_T'])
@@ -77,7 +77,7 @@ class DAGEnvironment(gym.vector.VectorEnv):
         source_rows = np.expand_dims(self._state['closure_T'][~dones, sources, :], axis=1)
         target_cols = np.expand_dims(self._state['closure_T'][~dones, :, targets], axis=2)
         self._state['closure_T'][~dones] |= np.logical_and(source_rows, target_cols)  # Outer product
-        self._state['closure_T'][dones] = np.eye(self.num_variables, dtype=np.bool_)
+        self._state['closure_T'][dones] = np.eye(self.num_variables, dtype=bool)
 
         return (self.observations(), rewards, dones, truncated, {})
 
@@ -214,7 +214,7 @@ class DAGEnvironment(gym.vector.VectorEnv):
     def key_batch_iterator(self, keys, batch_size, num_cutoffs=5):
         keys = sorted(keys, key=len)  # Sort graphs by number of edges
         cutoffs = 1 + np.ceil(np.linspace(len(keys[0]),  # "+1" for "stop" action
-            len(keys[-1]), num_cutoffs)).astype(np.int_)
+            len(keys[-1]), num_cutoffs)).astype(np.int64)
 
         for index in range(0, len(keys), batch_size):
             keys_ = keys[index:index + batch_size]
@@ -226,7 +226,7 @@ class DAGEnvironment(gym.vector.VectorEnv):
             yield (keys_, max_length)
 
     def key_to_action_mask(self, keys):
-        action_masks = np.zeros((len(keys), self.single_action_space.n), dtype=np.bool_)
+        action_masks = np.zeros((len(keys), self.single_action_space.n), dtype=bool)
         for i, edges in enumerate(keys):
             indices = np.array([self.num_variables * source + target
                 for (source, target) in edges])
@@ -247,7 +247,7 @@ class DAGEnvironment(gym.vector.VectorEnv):
         if blacklist is None:
             blacklist = dict((key, set()) for key in keys)
 
-        trajectories = np.full((len(keys), num_trajectories, max_length), -1, dtype=np.int_)
+        trajectories = np.full((len(keys), num_trajectories, max_length), -1, dtype=np.int64)
 
         for i, key in enumerate(keys):
             actions = np.asarray([
@@ -258,13 +258,13 @@ class DAGEnvironment(gym.vector.VectorEnv):
 
             idx, offset = 0, 0
             while (offset < num_trajectories) and (idx < max_retries):
-                new_trajs = np.full((num_trajectories, max_length), -1, dtype=np.int_)
+                new_trajs = np.full((num_trajectories, max_length), -1, dtype=np.int64)
                 new_trajs[:, :len(key)] = rng.permuted(actions, axis=1)
                 new_trajs[:, len(key)] = self.single_action_space.n - 1  # Add stop action
 
                 # Get the indices of the whitelisted trajectories
                 is_whitelist = np.array([tuple(traj) not in blacklist[key]
-                    for traj in new_trajs], dtype=np.bool_)
+                    for traj in new_trajs], dtype=bool)
                 num_whitelist = np.sum(is_whitelist)
 
                 trajectories[i, offset:offset + num_whitelist] = new_trajs[is_whitelist]
@@ -275,7 +275,7 @@ class DAGEnvironment(gym.vector.VectorEnv):
                 raise RuntimeError('Impossible to find non-blacklisted trajectories')
 
         # Log-backward probabilities
-        num_edges = np.asarray([len(key) for key in keys], dtype=np.int_)
+        num_edges = np.asarray([len(key) for key in keys], dtype=np.int64)
         log_pB = np.repeat(-gammaln(num_edges[:, None] + 1), num_trajectories, axis=1)
 
         return (trajectories, log_pB)

@@ -11,7 +11,7 @@ def compute_cache(env, log_policy, params, state, batch_size=256):
     for keys, observations in env.all_states_batch_iterator(batch_size=batch_size):
         log_probs = log_policy(params, state, observations)
         cache.update(zip(keys, np.asarray(log_probs)))
-    
+
     return cache
 
 

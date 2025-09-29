@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.stats import pearsonr, spearmanr
 
 
 def mean_phd(samples):
@@ -46,8 +47,8 @@ def jensen_shannon_divergence(distribution1, distribution2):
     for graph in graphs:
         log_probs1.append(distribution1[graph])
         log_probs2.append(distribution2[graph])
-    log_probs1 = np.array(log_probs1, dtype=np.float_)
-    log_probs2 = np.array(log_probs2, dtype=np.float_)
+    log_probs1 = np.array(log_probs1, dtype=np.float64)
+    log_probs2 = np.array(log_probs2, dtype=np.float64)
 
     # Compute the mean distribution
     log_probs_mean = np.log(0.5) + np.logaddexp(log_probs1, log_probs2)
@@ -63,3 +64,51 @@ def entropy(distribution):
 
     log_probs = np.asarray(list(distribution.values()))
     return -np.sum(np.exp(log_probs) * log_probs)
+
+
+def pearson_correlation(log_probs, rewards):
+    """
+    Compute Pearson correlation coefficient between log probabilities and rewards.
+    
+    Parameters
+    ----------
+    log_probs : np.ndarray
+        Log probabilities of terminal states
+    rewards : np.ndarray  
+        Rewards for corresponding terminal states
+        
+    Returns
+    -------
+    correlation : float
+        Pearson correlation coefficient
+    p_value : float
+        Two-tailed p-value
+    """
+    if len(log_probs) < 2 or len(rewards) < 2:
+        return np.nan, np.nan
+    
+    return pearsonr(log_probs, rewards)
+
+
+def spearman_correlation(log_probs, rewards):
+    """
+    Compute Spearman rank correlation coefficient between log probabilities and rewards.
+    
+    Parameters
+    ----------
+    log_probs : np.ndarray
+        Log probabilities of terminal states
+    rewards : np.ndarray
+        Rewards for corresponding terminal states
+        
+    Returns
+    -------
+    correlation : float
+        Spearman correlation coefficient  
+    p_value : float
+        Two-tailed p-value
+    """
+    if len(log_probs) < 2 or len(rewards) < 2:
+        return np.nan, np.nan
+        
+    return spearmanr(log_probs, rewards)

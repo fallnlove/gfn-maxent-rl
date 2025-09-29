@@ -42,11 +42,11 @@ def chain_env(
     dists = np.abs(values[:, None] - values)
     binary = factor * np.minimum(dists, num_categories - dists)
     X, Y = np.meshgrid(values, values)
-    binary_potentials = np.zeros((num_categories ** 2,), dtype=np.float_)
+    binary_potentials = np.zeros((num_categories ** 2,), dtype=np.float64)
     binary_potentials[X * num_categories + Y] = binary
 
     for edge in graph.edges:
-        potentials.append((np.asarray(edge, dtype=np.int_), binary_potentials))
+        potentials.append((np.asarray(edge, dtype=np.int64), binary_potentials))
 
     permutation = np.arange(num_variables)
 

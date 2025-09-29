@@ -22,7 +22,7 @@ class ExponentialReward:
         return self._offset - tree.mutations / self.scale
 
     def log_reward(self, trees):
-        log_rewards = np.zeros((len(trees),), dtype=np.float_)
+        log_rewards = np.zeros((len(trees),), dtype=np.float64)
         for i, tree in enumerate(trees):
             total_mutations = get_total_mutations(tree)
             log_rewards[i] = (self.C - total_mutations) / self.scale

@@ -65,7 +65,7 @@ def get_samples_from_env(
         env = deepcopy(env)
     observations, _ = env.reset()
 
-    returns_ = np.zeros((env.num_envs,), dtype=np.float_)
+    returns_ = np.zeros((env.num_envs,), dtype=np.float64)
     with trange(num_samples, disable=(not verbose), **kwargs) as pbar:
         while len(samples) < num_samples:
             keys = env.observation_to_key(observations)

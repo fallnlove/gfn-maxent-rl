@@ -37,7 +37,7 @@ class PhyloTreeEnvironment(gym.vector.VectorEnv):
     def __init__(self, num_envs, sequences, reward, sequence_type='DNA'):
         char_dict = CHARACTERS_MAPS[sequence_type]
         self.sequences = np.array([[char_dict[c] for c in sequence]
-            for sequence in sequences.values()], dtype=np.int_)
+            for sequence in sequences.values()], dtype=np.int64)
         num_nodes, sequence_length = self.sequences.shape
         assert num_nodes > 1
 
@@ -50,8 +50,8 @@ class PhyloTreeEnvironment(gym.vector.VectorEnv):
         observation_space = Dict({
             'sequences': Box(low=0., high=1.,
                 shape=(num_nodes, sequence_length, 5), dtype=np.float32),
-            'type': Box(low=0, high=2, shape=(num_nodes,), dtype=np.int_),
-            'tree': Box(low=-2, high=num_nodes, shape=(2 * num_nodes - 1,), dtype=np.int_),
+            'type': Box(low=0, high=2, shape=(num_nodes,), dtype=np.int64),
+            'tree': Box(low=-2, high=num_nodes, shape=(2 * num_nodes - 1,), dtype=np.int64),
             'mask': Box(low=0., high=1., shape=(max_actions,), dtype=np.float32),
         })
         action_space = Discrete(max_actions + 1)
@@ -64,16 +64,16 @@ class PhyloTreeEnvironment(gym.vector.VectorEnv):
             'trees': [[Leaf(index=n, sequence=seq)
                 for (n, seq) in enumerate(self.sequences)]
                 for _ in range(self.num_envs)],
-            'masks': np.ones((self.num_envs, max_actions), dtype=np.bool_)
+            'masks': np.ones((self.num_envs, max_actions), dtype=bool)
         }
         return (self.observations(), {})
 
     def step(self, actions):
         stop_action = self.single_action_space.n - 1  # num_nodes * (num_nodes - 1) // 2
         dones = (actions == stop_action)
-        truncated = np.zeros((self.num_envs,), dtype=np.bool_)
+        truncated = np.zeros((self.num_envs,), dtype=bool)
 
-        rewards = np.zeros((self.num_envs,), dtype=np.float_)
+        rewards = np.zeros((self.num_envs,), dtype=np.float64)
         for i, (trees, action) in enumerate(zip(self._state['trees'], actions)):
             if action == stop_action:
                 if any((tree is not None) for tree in trees[1:]):
@@ -106,7 +106,7 @@ class PhyloTreeEnvironment(gym.vector.VectorEnv):
     def observations(self):
         # Construct the sequence features
         sequences = np.zeros(self.observation_space['sequences'].shape, dtype=np.float32)
-        trees = np.full(self.observation_space['tree'].shape, -2, dtype=np.int_)
+        trees = np.full(self.observation_space['tree'].shape, -2, dtype=np.int64)
 
         for i in range(self.num_envs):
             state = self._state['trees'][i]
@@ -124,7 +124,7 @@ class PhyloTreeEnvironment(gym.vector.VectorEnv):
 
             # The number of valid trees in the "sequences" (among the "num_nodes")
             'type': np.array([[get_tree_type(tree) for tree in trees]
-                for trees in self._state['trees']], dtype=np.int_),  # (num_envs, num_nodes)
+                for trees in self._state['trees']], dtype=np.int64),  # (num_envs, num_nodes)
 
             # A representation of the structure of the trees ("-2" = intermediate state)
             'tree': trees,  # (num_envs, 2 * num_nodes - 1)
@@ -142,7 +142,7 @@ class PhyloTreeEnvironment(gym.vector.VectorEnv):
         nbytes_mask = math.ceil((self.single_action_space.n - 1) / 8)  # num_nodes * (num_nodes - 1) // 2
         return np.dtype([
             ('sequences', np.uint8, (nbytes_seq,)),
-            ('type', np.int_, (num_nodes,)),
+            ('type', np.int64, (num_nodes,)),
             ('mask', np.uint8, (nbytes_mask,)),
         ])
 
@@ -182,7 +182,7 @@ class PhyloTreeEnvironment(gym.vector.VectorEnv):
         num_nodes = self.sequences.shape[0]
         nbytes_mask = math.ceil((self.single_action_space.n - 1) / 8)  # num_nodes * (num_nodes - 1) // 2
         return np.dtype([
-            ('type', np.int_, (num_nodes,)),
+            ('type', np.int64, (num_nodes,)),
             ('mask', np.uint8, (nbytes_mask,)),
         ])
 
@@ -199,7 +199,7 @@ class PhyloTreeEnvironment(gym.vector.VectorEnv):
         num_nodes, sequence_length = self.sequences.shape
         arange = np.arange(batch_size)
 
-        sequences = np.zeros((batch_size, max_length, num_nodes, sequence_length, 5), dtype=np.bool_)
+        sequences = np.zeros((batch_size, max_length, num_nodes, sequence_length, 5), dtype=bool)
         sequences[:, 0] = ((self.sequences[..., None] & (1 << np.arange(5))) > 0)
 
         for i in range(max_length - 1):
@@ -277,8 +277,8 @@ class PhyloTreeEnvironment(gym.vector.VectorEnv):
             raise NotImplementedError('Argument `blacklist` must be `None`.')
 
         trajectories = np.full((len(keys), num_trajectories, self.max_length),
-            self.single_action_space.n - 1, dtype=np.int_)
-        log_pB = np.zeros((len(keys), num_trajectories), dtype=np.float_)
+            self.single_action_space.n - 1, dtype=np.int64)
+        log_pB = np.zeros((len(keys), num_trajectories), dtype=np.float64)
 
         for i, key in enumerate(keys):
             actions = generate_trajectories(key,
@@ -306,7 +306,7 @@ if __name__ == '__main__':
 
     def random_actions(observations, rng=default_rng()):
         # Get the action mask from the mask returned by the observations
-        action_masks = observations['mask'].astype(np.bool_)
+        action_masks = observations['mask'].astype(bool)
         is_terminal = np.any(action_masks, axis=1, keepdims=True)
         action_masks = np.concatenate((action_masks, ~is_terminal), axis=1)
 
@@ -330,7 +330,7 @@ if __name__ == '__main__':
         reward=reward,
         sequence_type='DNA_WITH_GAP'
     )
-    dones = np.zeros((env.num_envs,), dtype=np.bool_)
+    dones = np.zeros((env.num_envs,), dtype=bool)
 
     observations, _ = env.reset()
     # while not np.all(dones):

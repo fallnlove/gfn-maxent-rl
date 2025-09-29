@@ -3,23 +3,27 @@ import os
 import numpy as np
 import multiprocessing as mp
 import jax
+from copy import deepcopy
 
 from queue import Empty as EmptyException
 from collections import defaultdict
 
 from gfn_maxent_rl.utils.exhaustive import compute_cache, push_source_flow_to_terminating_states
-from gfn_maxent_rl.utils.metrics import jensen_shannon_divergence, entropy
+from gfn_maxent_rl.utils.metrics import jensen_shannon_divergence, entropy, pearson_correlation, spearman_correlation
+from gfn_maxent_rl.utils.evaluations import get_samples_from_env
+from gfn_maxent_rl.utils.estimation import estimate_log_probs_backward
 from gfn_maxent_rl.envs.errors import StatesEnumerationError
 
 
 class AsyncEvaluator:
-    def __init__(self, env, algorithm, path, run, ctx=None, target={}):
+    def __init__(self, env, algorithm, path, run, ctx=None, target={}, n_eval=1000):
         self.env = env
         self.algorithm = algorithm
         self.run = None if ((run is None) or run.disabled) else run
         self.ctx = mp.get_context(ctx)
         self.target = target
         self.path = path
+        self.n_eval = n_eval
 
         self._log_policy = jax.jit(algorithm.log_policy)
 
@@ -30,26 +34,15 @@ class AsyncEvaluator:
         self._namespace.metrics = self._manager.dict()
         self._process = self.ctx.Process(
             target=AsyncEvaluator._compute_metrics,
-            args=(self._queue, self._namespace, env, target, self.run, self.path),
+            args=(self._queue, self._namespace, env, algorithm, target, self.run, self.path, self.n_eval),
             daemon=True
         )
         self._process.start()
 
     def enqueue(self, params, state, step, batch_size=256):
-        try:
-            # Compute the cache
-            cache = compute_cache(
-                self.env,
-                self._log_policy,
-                params,
-                state,
-                batch_size=batch_size
-            )
-
-            # Add the cache & step to the queue for processing
-            self._queue.put((step, cache))
-        except StatesEnumerationError:
-            pass
+        # For environments where cache cannot be computed, 
+        # we pass params and state directly for correlation computation
+        self._queue.put((step, None, params, state))
 
     def join(self):
         self._queue.put(None)
@@ -60,11 +53,11 @@ class AsyncEvaluator:
         return results
 
     @staticmethod
-    def _compute_metrics(queue, namespace, env, target, run, path):
+    def _compute_metrics(queue, namespace, env, algorithm, target, run, path, n_eval):
         terminate = False
         while not terminate:
-            # Create the batch of caches
-            steps, raw_caches = [], defaultdict(list)
+            # Create the batch of data
+            steps, params_list, states_list = [], [], []
             while True:
                 try:
                     result = queue.get(block=True, timeout=1)
@@ -73,39 +66,106 @@ class AsyncEvaluator:
                         terminate = True
                         break
 
-                    step, cache = result
+                    step, cache, params, state = result
                     steps.append(step)
-                    for key, log_probs in cache.items():
-                        raw_caches[key].append(log_probs)
+                    params_list.append(params)
+                    states_list.append(state)
                 except EmptyException:
                     break
 
             # Process the batch
             if steps:
-                caches = dict()
-                for key, log_probs in raw_caches.items():
-                    caches[key] = np.stack(log_probs, axis=0)
-
-                # Apply the push-flow function
-                mdp_state_graph = push_source_flow_to_terminating_states(
-                    env.mdp_state_graph,
-                    caches
-                )
-
-                # Compute the log-probabilities
-                log_probs = [dict() for _ in steps]
-                for state, is_terminating in mdp_state_graph.nodes(data='terminating', default=False):
-                    if is_terminating:
-                        for i, log_prob in enumerate(mdp_state_graph.nodes[state]['log_prob']):
-                            log_probs[i][state] = log_prob
-
                 # Compute the metrics
                 metrics = dict()
-                for step, distribution in zip(steps, log_probs):
-                    metrics[step] = {
-                        'jsd': jensen_shannon_divergence(distribution, target['log_probs']),
-                        'entropy': entropy(distribution),
-                    }
+                for i, (step, params, state) in enumerate(zip(steps, params_list, states_list)):
+                    step_metrics = {}
+                    
+                    # Skip JSD and entropy if target not available
+                    if 'log_probs' in target:
+                        try:
+                            # Only compute JSD/entropy if cache-based computation is possible
+                            cache = compute_cache(
+                                env,
+                                algorithm.log_policy,
+                                params,
+                                state,
+                                batch_size=256
+                            )
+                            
+                            caches = {key: np.expand_dims(log_probs, 0) for key, log_probs in cache.items()}
+                            mdp_state_graph = push_source_flow_to_terminating_states(env.mdp_state_graph, caches)
+                            
+                            distribution = dict()
+                            for state_node, is_terminating in mdp_state_graph.nodes(data='terminating', default=False):
+                                if is_terminating:
+                                    log_prob = mdp_state_graph.nodes[state_node]['log_prob'][0]
+                                    distribution[state_node] = log_prob
+                            
+                            step_metrics.update({
+                                'jsd': jensen_shannon_divergence(distribution, target['log_probs']),
+                                'entropy': entropy(distribution),
+                            })
+                        except StatesEnumerationError:
+                            # Skip JSD/entropy for environments where cache cannot be computed
+                            pass
+                    
+                    # Compute correlation metrics using direct sampling
+                    try:
+                        # Sample terminal states from the environment
+                        env_copy = deepcopy(env)
+                        key = jax.random.PRNGKey(42 + step)  # Different seed for each step
+                        samples, returns = get_samples_from_env(
+                            env_copy, algorithm, params, state, key, 
+                            num_samples=n_eval, copy_env=False, verbose=False
+                        )
+                        
+                        # Compute log probabilities using backward rollout
+                        if len(samples) > 0:
+                            # Use estimate_log_probs_backward for accurate log_prob computation
+                            log_probs_dict = estimate_log_probs_backward(
+                                env_copy, algorithm, params, state, samples,
+                                batch_size=min(32, len(samples)), 
+                                num_trajectories=100,
+                                verbose=False
+                            )
+                            
+                            # Extract log_probs in the same order as samples
+                            sampled_log_probs = np.array([log_probs_dict[sample] for sample in samples])
+                        else:
+                            sampled_log_probs = np.array([])
+                        
+                        # Compute correlations
+                        if len(sampled_log_probs) > 1 and len(returns) > 1:
+                            pearson_corr, pearson_p = pearson_correlation(sampled_log_probs, returns)
+                            spearman_corr, spearman_p = spearman_correlation(sampled_log_probs, returns)
+                            
+                            step_metrics.update({
+                                'pearson_correlation': pearson_corr,
+                                'pearson_p_value': pearson_p,
+                                'spearman_correlation': spearman_corr,
+                                'spearman_p_value': spearman_p,
+                                'n_samples_correlation': len(sampled_log_probs)
+                            })
+                        else:
+                            step_metrics.update({
+                                'pearson_correlation': np.nan,
+                                'pearson_p_value': np.nan,
+                                'spearman_correlation': np.nan,
+                                'spearman_p_value': np.nan,
+                                'n_samples_correlation': len(sampled_log_probs) if len(sampled_log_probs) > 0 else 0
+                            })
+                            
+                    except Exception as e:
+                        # If correlation computation fails, set NaN values
+                        step_metrics.update({
+                            'pearson_correlation': np.nan,
+                            'pearson_p_value': np.nan,
+                            'spearman_correlation': np.nan,
+                            'spearman_p_value': np.nan,
+                            'n_samples_correlation': 0
+                        })
+                    
+                    metrics[step] = step_metrics
 
                 for step, metric in metrics.items():
                     # Save the metrics of the latest step
@@ -122,7 +182,4 @@ class AsyncEvaluator:
                         json.dump(data, f, ensure_ascii=False)
                         f.write("\n")
                     if run is not None:
-                        run.log({
-                            **data,
-                            'metrics/step': step
-                        })
+                        run.log(data)

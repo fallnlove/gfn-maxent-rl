@@ -56,12 +56,12 @@ def factor_graph2_env(
         # Get all the states
         states = np.fromiter(
             chain(*product([0, 1], repeat=clique_size)),
-            dtype=np.int_,
+            dtype=np.int64,
             count=clique_size * (1 << clique_size)
         ).reshape(-1, clique_size)
 
         potentials.append((
-            2 * np.asarray(clique, dtype=np.int_) + offset,
+            2 * np.asarray(clique, dtype=np.int64) + offset,
             factor * (np.sum(states, axis=1) >= (0.5 * clique_size))
         ))
     
@@ -69,7 +69,7 @@ def factor_graph2_env(
     xor_potential = np.array([0., 1., 1., 0.])
     for n in range(0, num_variables, 2):
         potentials.append((
-            np.array([n, n + 1], dtype=np.int_),
+            np.array([n, n + 1], dtype=np.int64),
             factor * xor_potential
         ))
     
@@ -81,6 +81,6 @@ def factor_graph2_env(
             if variable not in permutation:
                 permutation.append(variable)
     assert len(permutation) == num_variables
-    permutation = np.asarray(permutation, dtype=np.int_)
+    permutation = np.asarray(permutation, dtype=np.int64)
 
     return FactorGraphEnvironment(num_envs, graph, potentials, permutation)

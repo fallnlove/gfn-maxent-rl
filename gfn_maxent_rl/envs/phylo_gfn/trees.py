@@ -88,13 +88,13 @@ class RootedTree:
 
 def generate_trajectories(tree, num_nodes, num_trajectories, rng=default_rng()):
     if isinstance(tree, Leaf):
-        trajectories = np.zeros((num_trajectories, 0), dtype=np.int_)
+        trajectories = np.zeros((num_trajectories, 0), dtype=np.int64)
     else:
         # Get the last action
         action = tree.left.index * num_nodes \
             - tree.left.index * (tree.left.index + 1) // 2 \
             + tree.right.index - (tree.left.index + 1)
-        actions = np.full((num_trajectories, 1), action, dtype=np.int_)
+        actions = np.full((num_trajectories, 1), action, dtype=np.int64)
 
         # Get trajectories & number of trajectories
         left_trajs = generate_trajectories(tree.left, num_nodes, num_trajectories, rng=rng)
@@ -102,12 +102,12 @@ def generate_trajectories(tree, num_nodes, num_trajectories, rng=default_rng()):
 
         # Shuffle the orders
         left_num, right_num = left_trajs.shape[1], right_trajs.shape[1]
-        masks = np.zeros((num_trajectories, left_num + right_num), dtype=np.bool_)
+        masks = np.zeros((num_trajectories, left_num + right_num), dtype=bool)
         masks[:, :left_num] = True
         masks = rng.permuted(masks, axis=1)
 
         # Interlace actions
-        prefix = np.zeros((num_trajectories, left_num + right_num), dtype=np.int_)
+        prefix = np.zeros((num_trajectories, left_num + right_num), dtype=np.int64)
         prefix[masks] = left_trajs.reshape(-1)
         prefix[~masks] = right_trajs.reshape(-1)
 
@@ -121,8 +121,8 @@ def get_log_backward_prob(actions):
     lefts, rights = np.triu_indices(num_nodes + 1, k=1)
     arange = np.arange(batch_size)
 
-    types = np.ones((batch_size, num_nodes + 1), dtype=np.int_)
-    log_pB = np.zeros((batch_size,), dtype=np.float_)
+    types = np.ones((batch_size, num_nodes + 1), dtype=np.int64)
+    log_pB = np.zeros((batch_size,), dtype=np.float64)
     for action in actions.T:
         left, right = lefts[action], rights[action]
 

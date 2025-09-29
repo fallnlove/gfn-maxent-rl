@@ -28,9 +28,9 @@ def permuted_chain_env(
         values = np.arange(num_categories)
         X, Y = np.meshgrid(values, values)
 
-        potential = np.zeros((num_categories ** 2,), dtype=np.float_)
+        potential = np.zeros((num_categories ** 2,), dtype=np.float64)
         potential[X * num_categories + Y] = cond_distributions[target]
-        potentials.append((np.asarray([source, target], dtype=np.int_), potential))
+        potentials.append((np.asarray([source, target], dtype=np.int64), potential))
     
     permutation = np.arange(num_variables)
 

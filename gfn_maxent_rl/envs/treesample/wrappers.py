@@ -22,7 +22,7 @@ class FixedOrderingWrapper(gym.Wrapper):
 
         return {
             'variables': np.copy(self.env._state),
-            'mask': (indices == variables[:, None]).astype(np.int_)
+            'mask': (indices == variables[:, None]).astype(np.int64)
         }
 
     def num_parents(self, observations):

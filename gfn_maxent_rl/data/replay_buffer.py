@@ -10,8 +10,8 @@ class ReplayBuffer:
 
         dtype = np.dtype([
             ('observation', env.observation_dtype),
-            ('action', np.int_, (1,)),
-            ('reward', np.float_, (1,)),
+            ('action', np.int32, (1,)),
+            ('reward', np.float64, (1,)),
             ('next_observation', env.observation_dtype)
         ])
         self._replay = np.zeros((capacity,), dtype=dtype)
@@ -28,8 +28,8 @@ class ReplayBuffer:
         self._index = (self._index + num_samples) % self.capacity
 
         self._replay['observation'][add_idx] = self.env.encode(observations)[~dones]
-        self._replay['action'][add_idx] = np.asarray(actions[~dones].reshape(-1, 1), dtype=np.int_)
-        self._replay['reward'][add_idx] = np.asarray(rewards[~dones].reshape(-1, 1), dtype=np.float_)
+        self._replay['action'][add_idx] = np.asarray(actions[~dones].reshape(-1, 1), dtype=np.int64)
+        self._replay['reward'][add_idx] = np.asarray(rewards[~dones].reshape(-1, 1), dtype=np.float64)
         self._replay['next_observation'][add_idx] = self.env.encode(next_observations)[~dones]
 
         return None

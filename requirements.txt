@@ -9,3 +9,4 @@ tqdm
 wandb
 hydra-core
 omegaconf
+scipy
