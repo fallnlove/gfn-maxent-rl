@@ -6,7 +6,7 @@ from gfn_maxent_rl.envs.phylo_gfn.rewards import ExponentialReward
 from gfn_maxent_rl.envs.phylo_gfn.env import PhyloTreeEnvironment
 
 
-DATA_FOLDER = Path(__file__).resolve().parent / 'datasets'
+DATA_FOLDER = Path(__file__).resolve().parent / 'phylo_dataset'
 CONFIGS = {
     'DS1': ('DNA_WITH_GAP', 5800.0, 4.),
     'DS2': ('DNA_WITH_GAP', 8000.0, 4.),

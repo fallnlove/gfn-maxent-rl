@@ -63,7 +63,8 @@ def main(config):
         target['log_probs'] = exact_log_posterior(env, batch_size=config.batch_size)
     except StatesEnumerationError:
         pass
-    evaluator = AsyncEvaluator(env, algorithm, None, ctx='spawn', target=target)
+    path = f"tmp1/{config.env.env.dataset_name}/run_{config.seed}"
+    evaluator = AsyncEvaluator(env, algorithm, path, None, ctx='spawn', target=target)
 
     observations, _ = env.reset()
     indices = None

@@ -1,3 +1,5 @@
+import json
+import os
 import numpy as np
 import multiprocessing as mp
 import jax
@@ -11,12 +13,13 @@ from gfn_maxent_rl.envs.errors import StatesEnumerationError
 
 
 class AsyncEvaluator:
-    def __init__(self, env, algorithm, run, ctx=None, target={}):
+    def __init__(self, env, algorithm, path, run, ctx=None, target={}):
         self.env = env
         self.algorithm = algorithm
         self.run = None if ((run is None) or run.disabled) else run
         self.ctx = mp.get_context(ctx)
         self.target = target
+        self.path = path
 
         self._log_policy = jax.jit(algorithm.log_policy)
 
@@ -27,7 +30,7 @@ class AsyncEvaluator:
         self._namespace.metrics = self._manager.dict()
         self._process = self.ctx.Process(
             target=AsyncEvaluator._compute_metrics,
-            args=(self._queue, self._namespace, env, target, self.run),
+            args=(self._queue, self._namespace, env, target, self.run, self.path),
             daemon=True
         )
         self._process.start()
@@ -57,7 +60,7 @@ class AsyncEvaluator:
         return results
 
     @staticmethod
-    def _compute_metrics(queue, namespace, env, target, run):
+    def _compute_metrics(queue, namespace, env, target, run, path):
         terminate = False
         while not terminate:
             # Create the batch of caches
@@ -112,8 +115,14 @@ class AsyncEvaluator:
                             namespace.metrics[key] = value
 
                     # Send to Wandb
+                    data = {f'metrics/{key}': value for (key, value) in metric.items()}
+                    data['step'] = step
+                    log_file = os.path.join(path, "log.jsonl")
+                    with open(log_file, "a", encoding="utf-8") as f:
+                        json.dump(data, f, ensure_ascii=False)
+                        f.write("\n")
                     if run is not None:
                         run.log({
-                            **{f'metrics/{key}': value for (key, value) in metric.items()},
+                            **data,
                             'metrics/step': step
                         })

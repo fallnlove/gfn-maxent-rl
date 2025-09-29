@@ -1,7 +1,7 @@
 defaults:
   - _self_
-  - env: "dag_gfn"
-  - algorithm: "db"
+  - env: "phylo_gfn"
+  - algorithm: "fldb"
 
 replay:
   _target_: "gfn_maxent_rl.data.ReplayBuffer"
