@@ -21,7 +21,7 @@ class Transformer(hk.Module):
     num_heads: int = 8  # Number of attention heads.
     num_layers: int = 6  # Number of transformer (attention + MLP) layers to stack.
     attn_size: int = 32  # Size of the attention (key, query, value) vectors.
-    dropout_rate: float = 0.1  # Probability with which to apply dropout.
+    dropout_rate: float = 0.01  # Probability with which to apply dropout.
     widening_factor: int = 4  # Factor by which the MLP hidden layer widens.
 
     # name: Optional[str] = None  # Optional identifier for the module.

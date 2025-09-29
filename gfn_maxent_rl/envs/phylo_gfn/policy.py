@@ -96,7 +96,10 @@ def f_network_transformer(observations):
     batch_size = observations['sequences'].shape[0]
     encoding = encoder(observations)
     encoding = encoding.reshape(batch_size, -1)
-    outputs = hk.Linear(1)(encoding)
+    outputs = hk.nets.MLP(
+        (256, 256, 1),
+        activation=jax.nn.leaky_relu
+    )(encoding)
     outputs = jnp.squeeze(outputs, axis=-1)
 
     # Set the flow at terminating states to 0
