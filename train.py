@@ -11,6 +11,7 @@ from tqdm.auto import trange
 from gfn_maxent_rl.utils.exhaustive import exact_log_posterior
 from gfn_maxent_rl.utils.sync_evaluation import SyncEvaluator
 from gfn_maxent_rl.envs.errors import StatesEnumerationError
+from gfn_maxent_rl.utils.evaluations import sample_trajectories_for_training
 
 
 @hydra.main(version_base=None, config_path='config', config_name='default')
@@ -43,9 +44,6 @@ def main(config):
         env = hydra.utils.instantiate(config.env_wrapper, env=env)
         env_valid = hydra.utils.instantiate(config.env_wrapper, env=env_valid)
 
-    # Create the replay buffer
-    replay = hydra.utils.instantiate(config.replay, env=env)
-
     # Create the algorithm
     algorithm = hydra.utils.instantiate(config.algorithm, env=env)
     algorithm.optimizer = hydra.utils.instantiate(config.optimizer)
@@ -55,7 +53,6 @@ def main(config):
         init_value=jnp.array(0.),
         end_value=jnp.array(1. - config.exploration.min_exploration),
         transition_steps=config.exploration.warmup,
-        transition_begin=config.prefill,
     ))
 
     target = {}
@@ -66,39 +63,24 @@ def main(config):
     path = f"tmp1/{config.env.dataset_name}/run_{config.seed}"
     evaluator = SyncEvaluator(env, algorithm, path, None, target=target, n_eval=config.n_eval)
 
-    observations, _ = env.reset()
-    indices = None
-    with trange(config.prefill + config.num_iterations) as pbar:
+    with trange(config.num_iterations) as pbar:
         for iteration in pbar:
             epsilon = exploration_schedule(iteration)
             # Sample actions from the model (with exploration)
-            actions, key, logs = algorithm.act(
-                params.online, state.network, key, observations, epsilon)
-            actions = np.asarray(actions)
+            samples, key = sample_trajectories_for_training(env, algorithm, params, state.network, key, epsilon)
+            params, state, logs = algorithm.step(params, state, samples)
 
-            # Apply the actions in the environment
-            next_observations, rewards, dones, _, _ = env.step(actions)
+            train_steps = iteration
 
-            # Add the transitions to the replay buffer
-            indices = replay.add(observations, actions, rewards, dones, next_observations, indices=indices)
-            observations = next_observations
+            if train_steps % config.log_every == 0:
+                evaluator.enqueue(
+                    params.online,
+                    state.network,
+                    train_steps,
+                    batch_size=config.batch_size,
+                )
 
-            if (iteration >= config.prefill) and replay.can_sample(config.batch_size):
-                # Sample from the replay buffer, and do one step of gradient
-                samples = replay.sample(batch_size=config.batch_size, rng=rng)
-                params, state, logs = algorithm.step(params, state, samples)
-
-                train_steps = iteration - config.prefill
-
-                if train_steps % config.log_every == 0:
-                    evaluator.enqueue(
-                        params.online,
-                        state.network,
-                        train_steps,
-                        batch_size=config.batch_size,
-                    )
-
-                pbar.set_postfix(loss=f'{logs["loss"]:.3f}')
+            pbar.set_postfix(loss=f'{logs["loss"]:.3f}')
 
     # Evaluate the final model
 

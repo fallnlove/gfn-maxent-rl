@@ -3,14 +3,8 @@ defaults:
   - env: "phylo_gfn"
   - algorithm: "fldb"
 
-replay:
-  _target_: "gfn_maxent_rl.data.ReplayBuffer"
-
-  # Capacity of the replay buffer
-  capacity: 100_000
-
 # Number of parallel environments
-num_envs: 8
+num_envs: 32
 
 env_wrapper:
   _target_: "gfn_maxent_rl.envs.wrappers.RewardCorrection"

@@ -1,4 +1,5 @@
 import numpy as np
+import jax.numpy as jnp
 
 from copy import deepcopy
 from tqdm.auto import trange
@@ -93,3 +94,114 @@ def get_samples_from_env(
     returns = returns[:num_samples]
 
     return (samples, np.asarray(returns))
+
+
+def sample_trajectories_for_training(
+    env,
+    algorithm,
+    params,
+    net_state,
+    key,
+    epsilon=0.1,
+    verbose=False,
+    **kwargs
+):
+    """Sample complete trajectories with exploration for training.
+
+    Parameters
+    ----------
+    env : gym.vector.VectorEnv instance
+        The environment.
+
+    algorithm : BaseAlgorithm instance
+        The algorithm. This must implement the `act` method.
+
+    params : Any
+        The parameters of the networks (e.g., the policy network).
+        Note that this must be the parameters of the *online* network
+        (i.e., the parameters learned by the algorithm).
+
+    net_state : Any
+        The state of the network. This will be typically `state.network`,
+        where `state` is the state returned by the initialization of the
+        algorithm (and updated during training).
+
+    key : jax.random.PRNGKey
+        The Jax random key.
+
+    epsilon : float
+        The exploration parameter. Higher values mean more exploration.
+
+    verbose : bool
+        Display a progress bar.
+
+    Returns
+    -------
+    trajectories : list of trajectories
+        A list of complete trajectories (one per environment), each trajectory is a dict containing:
+        - 'observations': list of observations
+        - 'actions': list of actions
+        - 'rewards': list of rewards
+        - 'dones': list of done flags
+        - 'sample': the final sample key
+        - 'return': the total return of the trajectory
+
+    key : jax.random.PRNGKey
+        Updated random key.
+    """
+    trajectories = {
+        'observation': {
+            'sequences': [],
+            'type': [],
+            'tree': [],
+            'mask': [],
+        },
+        'next_observation': {
+            'sequences': [],
+            'type': [],
+            'tree': [],
+            'mask': [],
+        },
+        'action': [],
+        'reward': [],
+        'done': [],
+    }
+    
+    # Reset environment for all environments
+    observations, _ = env.reset()
+    
+    # Run trajectories until all environments are done
+    for i in range(env.max_length - 1):
+        # Store current observations
+        for obs_key in trajectories['observation'].keys():
+            trajectories['observation'][obs_key].append(observations[obs_key])
+        
+        # Sample actions from the model with exploration
+        actions, key, _ = algorithm.act(
+            params.online, net_state, key, observations, epsilon=epsilon)
+        actions = np.asarray(actions)
+        
+        # Store actions
+        trajectories['action'].append(actions)
+        
+        # Apply the actions in the environment
+        next_observations, rewards, dones, *_ = env.step(actions)
+        
+        # Store rewards and dones
+        trajectories['reward'].append(rewards)
+        trajectories['done'].append(dones)
+        # trajectories['next_observation'].append(next_observations)
+        for obs_key in trajectories['next_observation'].keys():
+            trajectories['next_observation'][obs_key].append(next_observations[obs_key])
+
+        
+        observations = next_observations
+
+    trajectories['reward'] = np.concatenate(trajectories['reward'], axis=0).reshape(-1, 1)
+    for obs_key in trajectories['next_observation'].keys():
+        trajectories['next_observation'][obs_key] = np.concatenate(trajectories['next_observation'][obs_key], axis=0)
+        trajectories['observation'][obs_key] = np.concatenate(trajectories['observation'][obs_key], axis=0)
+    trajectories['action'] = jnp.concatenate(trajectories['action'], axis=0).reshape(-1, 1)
+    trajectories['done'] = np.concatenate(trajectories['done'], axis=0).reshape(-1, 1)
+    
+    return trajectories, key
