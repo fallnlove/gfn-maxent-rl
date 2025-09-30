@@ -10,18 +10,29 @@ env_wrapper:
   _target_: "gfn_maxent_rl.envs.wrappers.RewardCorrection"
   alpha: 1.0
 
-# Number of iterations with a random policy to prefill the replay buffer
-prefill: 1000
-
 exploration:
   # Minimum value of epsilon-exploration
-  min_exploration: 0.1
+  min_exploration: 0.0
 
   # Number of steps for warming up exploration
   warmup: 50_000  # 100_000 / 2
 
 # Learning rate
-lr: 1e-4
+lr1:
+  _target_: optax.warmup_cosine_decay_schedule
+  init_value: 0.0
+  peak_value: 3e-4
+  warmup_steps: 5000
+  decay_steps: 95000
+  end_value: 1e-5
+
+lr2:
+  _target_: optax.warmup_cosine_decay_schedule
+  init_value: 0.0
+  peak_value: 3e-4
+  warmup_steps: 5000
+  decay_steps: 95000
+  end_value: 1e-5
 
 # Batch size
 batch_size: 128

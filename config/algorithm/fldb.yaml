@@ -7,19 +7,17 @@ algorithm:
 
   flow_network: ${flow_network}
 
-  target: "periodic"
-  target_kwargs:
-    update_period: 1000
+  target: null
 
 optimizer:
   _target_: "gfn_maxent_rl.algos.forward_looking_detailed_balance.DBParameters"
 
   policy:
     _target_: "optax.adam"
-    learning_rate: ${lr}
+    learning_rate: ${lr1}
 
   flow:
     _target_: "optax.adam"
-    learning_rate: ${lr}
+    learning_rate: ${lr2}
 
 exp_name_algorithm: "fldb"

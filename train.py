@@ -46,6 +46,9 @@ def main(config):
 
     # Create the algorithm
     algorithm = hydra.utils.instantiate(config.algorithm, env=env)
+    # Create transition steps schedule
+    assert config.num_iterations == config.lr1.decay_steps + config.lr1.warmup_steps
+    assert config.num_iterations == config.lr2.decay_steps + config.lr2.warmup_steps
     algorithm.optimizer = hydra.utils.instantiate(config.optimizer)
     params, state = algorithm.init(key)
 
