@@ -7,7 +7,9 @@ algorithm:
 
   flow_network: ${flow_network}
 
-  target: null
+  target: "incremental"
+  target_kwargs:
+    step_size: 0.005
 
 optimizer:
   _target_: "gfn_maxent_rl.algos.forward_looking_detailed_balance.DBParameters"
