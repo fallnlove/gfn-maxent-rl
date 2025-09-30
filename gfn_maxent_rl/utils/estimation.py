@@ -145,7 +145,7 @@ def estimate_log_probs_backward(
     # Vmap function over multiple samples
     log_prob_fn = log_prob_trajectories(env, algorithm)
     log_prob_fn = jax.vmap(log_prob_fn, in_axes=(None, None, 0))
-    log_prob_fn = jax.jit(log_prob_fn)
+    log_prob_fn = log_prob_fn  # Very slow compile
 
     num_batches = math.ceil(len(samples) / batch_size)
     for keys, max_length in tqdm(env.key_batch_iterator(samples, batch_size=batch_size),
