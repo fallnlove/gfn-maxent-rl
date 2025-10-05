@@ -66,7 +66,7 @@ def main(config):
         target['log_probs'] = exact_log_posterior(env, batch_size=config.batch_size)
     except StatesEnumerationError:
         pass
-    path = f"tmp1/{config.env.dataset_name}/run_{config.seed}"
+    path = f"tmp_replay/{config.env.dataset_name}/run_{config.seed}"
     evaluator = SyncEvaluator(env, algorithm, path, None, target=target, n_eval=config.n_eval)
 
     observations, _ = env.reset()
